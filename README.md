@@ -49,7 +49,7 @@ simples, não uma plataforma):
     {
       "accessory": "GeniusDesk",
       "name": "Genius Desk",
-      "id": "eb51751f300fee3b39qyu5",
+      "id": "SEU_DEVICE_ID_AQUI",
       "key": "SUA_LOCAL_KEY_AQUI",
       "ip": "IP_LOCAL_NA_SUA_REDE_OPCIONAL",
       "protocolVersion": "3.4",
@@ -65,7 +65,7 @@ simples, não uma plataforma):
 
 ### Onde conseguir cada valor
 
-- **`id`**: já temos — `eb51751f300fee3b39qyu5`.
+- **`id`**: Device ID do seu dispositivo (veja onde pegar abaixo).
 - **`key`** (local key): no Tuya IoT Platform → Cloud → seu projeto →
   Devices → clique no dispositivo → aba "Device Information" (ou via
   `tuya-cli wizard`, que também lista todos os dispositivos vinculados
