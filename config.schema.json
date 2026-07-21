@@ -1,0 +1,91 @@
+{
+  "pluginAlias": "GeniusDesk",
+  "pluginType": "accessory",
+  "singular": false,
+  "headerDisplay": "Accessory para mesas de altura ajustável Tuya (categoria `sjz`) com controle em malha fechada por altura real (cm), não por percentual.",
+  "footerDisplay": "Antes de usar de verdade, confirme os valores do enum do DP `up_down` (veja o README). O `id` e a `key` (local key) são obtidos no Tuya IoT Platform.",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "title": "Nome",
+        "type": "string",
+        "default": "Genius Desk",
+        "required": true
+      },
+      "id": {
+        "title": "Device ID",
+        "type": "string",
+        "required": true,
+        "description": "ID do dispositivo no Tuya IoT Platform."
+      },
+      "key": {
+        "title": "Local Key",
+        "type": "string",
+        "required": true,
+        "description": "Local key do dispositivo (Tuya IoT Platform → Devices → Device Information)."
+      },
+      "ip": {
+        "title": "IP local (opcional)",
+        "type": "string",
+        "description": "Se vazio, o plugin tenta descobrir o dispositivo via broadcast UDP na rede local."
+      },
+      "protocolVersion": {
+        "title": "Versão do protocolo Tuya",
+        "type": "string",
+        "default": "3.3"
+      },
+      "minHeightCm": {
+        "title": "Altura mínima (cm)",
+        "type": "number",
+        "required": true
+      },
+      "maxHeightCm": {
+        "title": "Altura máxima (cm)",
+        "type": "number",
+        "required": true
+      },
+      "toleranceCm": {
+        "title": "Tolerância (cm)",
+        "type": "number",
+        "default": 1
+      },
+      "watchdogMs": {
+        "title": "Timeout do watchdog (ms)",
+        "type": "integer",
+        "default": 30000,
+        "description": "Para o motor por segurança se ele não convergir para a altura-alvo dentro deste tempo."
+      },
+      "dpControl": {
+        "title": "DP do controle up/down/stop",
+        "type": "string",
+        "default": "1"
+      },
+      "dpWorkState": {
+        "title": "DP do estado do motor",
+        "type": "string",
+        "default": "2"
+      },
+      "dpFault": {
+        "title": "DP de falha (bitmap)",
+        "type": "string",
+        "default": "5"
+      },
+      "dpHeight": {
+        "title": "DP da altura (cm)",
+        "type": "string",
+        "default": "8"
+      },
+      "manufacturer": {
+        "title": "Fabricante",
+        "type": "string",
+        "default": "Tuya"
+      },
+      "model": {
+        "title": "Modelo",
+        "type": "string",
+        "default": "Genius Desk"
+      }
+    }
+  }
+}
