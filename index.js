@@ -75,6 +75,20 @@ class GeniusDeskAccessory {
       version: this.protocolVersion,
     });
 
+    // Registrados uma única vez: o `device` vive pelo tempo todo do accessory,
+    // então re-registrar esses handlers a cada connect() (como era antes)
+    // duplica listeners a cada reconexão e vira um loop exponencial.
+    this.device.on('data', (data) => this.handleData(data));
+
+    this.device.on('disconnected', () => {
+      this.log.warn('GeniusDesk: desconectado, tentando reconectar...');
+      setTimeout(() => this.connect(), 5000);
+    });
+
+    this.device.on('error', (err) => {
+      this.log.error(`GeniusDesk: erro de conexão — ${err.message}`);
+    });
+
     this.service = new this.hap.Service.WindowCovering(this.name);
 
     this.service
@@ -125,17 +139,6 @@ class GeniusDeskAccessory {
       setTimeout(() => this.connect(), 10000);
       return;
     }
-
-    this.device.on('data', (data) => this.handleData(data));
-
-    this.device.on('disconnected', () => {
-      this.log.warn('GeniusDesk: desconectado, tentando reconectar...');
-      setTimeout(() => this.connect(), 5000);
-    });
-
-    this.device.on('error', (err) => {
-      this.log.error(`GeniusDesk: erro de conexão — ${err.message}`);
-    });
 
     // Pede o estado atual assim que conecta
     try {
