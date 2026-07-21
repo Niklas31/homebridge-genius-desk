@@ -1,7 +1,7 @@
 /**
  * homebridge-genius-desk
  *
- * Accessory customizado para mesas de altura ajustável Tuya que:
+ * Dynamic platform para uma ou mais mesas de altura ajustável Tuya que:
  *   - reportam altura real em cm (DP "height")
  *   - só aceitam comando discreto up/down/stop (DP "up_down")
  *   - reportam estado do motor (DP "work_state") e falhas (DP "fault")
@@ -25,20 +25,94 @@
 
 const TuyaDevice = require('tuyapi');
 
+const PLUGIN_NAME = 'homebridge-genius-desk';
+const PLATFORM_NAME = 'GeniusDesk';
+
 // Ajuste aqui se o log mostrar valores diferentes para o DP up_down
 const UP_DOWN_UP = 'up';
 const UP_DOWN_DOWN = 'down';
 const UP_DOWN_STOP = 'stop';
 
 module.exports = (api) => {
-  api.registerAccessory('homebridge-genius-desk', 'GeniusDesk', GeniusDeskAccessory);
+  api.registerPlatform(PLUGIN_NAME, PLATFORM_NAME, GeniusDeskPlatform);
 };
 
-class GeniusDeskAccessory {
+class GeniusDeskPlatform {
   constructor(log, config, api) {
     this.log = log;
     this.api = api;
     this.hap = api.hap;
+    this.config = config || {};
+    this.devicesConfig = Array.isArray(this.config.devices) ? this.config.devices : [];
+
+    // Acessórios restaurados do cache do Homebridge (chamado antes de
+    // 'didFinishLaunching'), indexados por UUID.
+    this.cachedAccessories = new Map();
+    this.desks = [];
+
+    if (!api) return;
+
+    this.api.on('didFinishLaunching', () => this.discoverDevices());
+  }
+
+  // Chamado pelo Homebridge para cada acessório restaurado do cache em disco.
+  configureAccessory(accessory) {
+    this.cachedAccessories.set(accessory.UUID, accessory);
+  }
+
+  discoverDevices() {
+    if (this.devicesConfig.length === 0) {
+      this.log.warn('GeniusDesk: nenhuma mesa configurada em "devices" na plataforma.');
+    }
+
+    const seenUuids = new Set();
+
+    for (const deviceConfig of this.devicesConfig) {
+      const name = deviceConfig.name || 'Genius Desk';
+
+      if (!deviceConfig.id || !deviceConfig.key) {
+        this.log.error(`GeniusDesk: mesa "${name}" sem "id"/"key" no config — pulando.`);
+        continue;
+      }
+      if (deviceConfig.minHeightCm == null || deviceConfig.maxHeightCm == null) {
+        this.log.error(`GeniusDesk: mesa "${name}" sem "minHeightCm"/"maxHeightCm" no config — pulando.`);
+        continue;
+      }
+
+      const uuid = this.hap.uuid.generate(`${PLUGIN_NAME}:${deviceConfig.id}`);
+      seenUuids.add(uuid);
+
+      let accessory = this.cachedAccessories.get(uuid);
+      if (!accessory) {
+        this.log.info(`GeniusDesk: registrando nova mesa "${name}"`);
+        accessory = new this.api.platformAccessory(name, uuid);
+        this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
+      } else {
+        accessory.displayName = name;
+      }
+
+      this.desks.push(new GeniusDesk(this.log, deviceConfig, this.api, accessory));
+    }
+
+    const staleAccessories = [];
+    for (const [uuid, accessory] of this.cachedAccessories) {
+      if (!seenUuids.has(uuid)) {
+        this.log.info(`GeniusDesk: removendo mesa não mais configurada: ${accessory.displayName}`);
+        staleAccessories.push(accessory);
+      }
+    }
+    if (staleAccessories.length > 0) {
+      this.api.unregisterPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, staleAccessories);
+    }
+  }
+}
+
+class GeniusDesk {
+  constructor(log, config, api, accessory) {
+    this.log = log;
+    this.api = api;
+    this.hap = api.hap;
+    this.accessory = accessory;
 
     this.name = config.name || 'Genius Desk';
     this.deviceId = config.id;
@@ -55,13 +129,6 @@ class GeniusDeskAccessory {
     this.dpHeight = String(config.dpHeight || 8);
     this.watchdogMs = config.watchdogMs || 30000; // segurança: para o motor se não convergir
 
-    if (!this.deviceId || !this.localKey) {
-      throw new Error('GeniusDesk: "id" e "key" (local key) são obrigatórios no config.');
-    }
-    if (this.minHeightCm == null || this.maxHeightCm == null) {
-      throw new Error('GeniusDesk: "minHeightCm" e "maxHeightCm" são obrigatórios no config.');
-    }
-
     this.currentHeightCm = null;
     this.targetHeightCm = null;
     this.targetPositionPercent = null;
@@ -75,21 +142,23 @@ class GeniusDeskAccessory {
       version: this.protocolVersion,
     });
 
-    // Registrados uma única vez: o `device` vive pelo tempo todo do accessory,
-    // então re-registrar esses handlers a cada connect() (como era antes)
-    // duplica listeners a cada reconexão e vira um loop exponencial.
+    // Registrados uma única vez: o `device` vive pelo tempo todo do acessório,
+    // então re-registrar esses handlers a cada connect() duplica listeners a
+    // cada reconexão e vira um loop exponencial.
     this.device.on('data', (data) => this.handleData(data));
 
     this.device.on('disconnected', () => {
-      this.log.warn('GeniusDesk: desconectado, tentando reconectar...');
+      this.log.warn(`GeniusDesk (${this.name}): desconectado, tentando reconectar...`);
       setTimeout(() => this.connect(), 5000);
     });
 
     this.device.on('error', (err) => {
-      this.log.error(`GeniusDesk: erro de conexão — ${err.message}`);
+      this.log.error(`GeniusDesk (${this.name}): erro de conexão — ${err.message}`);
     });
 
-    this.service = new this.hap.Service.WindowCovering(this.name);
+    this.service =
+      this.accessory.getService(this.hap.Service.WindowCovering) ||
+      this.accessory.addService(this.hap.Service.WindowCovering, this.name);
 
     this.service
       .getCharacteristic(this.hap.Characteristic.CurrentPosition)
@@ -105,7 +174,10 @@ class GeniusDeskAccessory {
       .getCharacteristic(this.hap.Characteristic.PositionState)
       .onGet(() => this.positionState);
 
-    this.informationService = new this.hap.Service.AccessoryInformation()
+    const informationService =
+      this.accessory.getService(this.hap.Service.AccessoryInformation) ||
+      this.accessory.addService(this.hap.Service.AccessoryInformation);
+    informationService
       .setCharacteristic(this.hap.Characteristic.Manufacturer, config.manufacturer || 'Tuya')
       .setCharacteristic(this.hap.Characteristic.Model, config.model || 'Genius Desk')
       .setCharacteristic(this.hap.Characteristic.SerialNumber, this.deviceId);
@@ -129,13 +201,13 @@ class GeniusDeskAccessory {
   async connect() {
     try {
       if (!this.ip) {
-        this.log.info('GeniusDesk: procurando dispositivo na rede local...');
+        this.log.info(`GeniusDesk (${this.name}): procurando dispositivo na rede local...`);
         await this.device.find();
       }
       await this.device.connect();
-      this.log.info(`GeniusDesk: conectado a "${this.name}"`);
+      this.log.info(`GeniusDesk (${this.name}): conectado`);
     } catch (err) {
-      this.log.error(`GeniusDesk: falha ao conectar, tentando novamente em 10s — ${err.message}`);
+      this.log.error(`GeniusDesk (${this.name}): falha ao conectar, tentando novamente em 10s — ${err.message}`);
       setTimeout(() => this.connect(), 10000);
       return;
     }
@@ -144,7 +216,7 @@ class GeniusDeskAccessory {
     try {
       await this.device.get({ schema: true });
     } catch (err) {
-      this.log.warn(`GeniusDesk: não consegui buscar estado inicial — ${err.message}`);
+      this.log.warn(`GeniusDesk (${this.name}): não consegui buscar estado inicial — ${err.message}`);
     }
   }
 
@@ -179,7 +251,7 @@ class GeniusDeskAccessory {
         hasFault ? this.hap.Characteristic.StatusFault.GENERAL_FAULT : this.hap.Characteristic.StatusFault.NO_FAULT
       );
       if (hasFault) {
-        this.log.warn(`GeniusDesk: bitmap de falha reportado (${dps[this.dpFault]}) — parando o motor por segurança`);
+        this.log.warn(`GeniusDesk (${this.name}): bitmap de falha reportado (${dps[this.dpFault]}) — parando o motor por segurança`);
         this.stopMotor();
       }
     }
@@ -190,10 +262,10 @@ class GeniusDeskAccessory {
   async setTargetPosition(percent) {
     this.targetPositionPercent = percent;
     this.targetHeightCm = this.heightFromPercent(percent);
-    this.log.info(`GeniusDesk: alvo ${percent}% (~${this.targetHeightCm.toFixed(1)}cm)`);
+    this.log.info(`GeniusDesk (${this.name}): alvo ${percent}% (~${this.targetHeightCm.toFixed(1)}cm)`);
 
     if (this.currentHeightCm == null) {
-      this.log.warn('GeniusDesk: ainda sem leitura de altura atual, ignorando comando');
+      this.log.warn(`GeniusDesk (${this.name}): ainda sem leitura de altura atual, ignorando comando`);
       return;
     }
 
@@ -208,7 +280,7 @@ class GeniusDeskAccessory {
       this.moving = true;
       this.armWatchdog();
     } catch (err) {
-      this.log.error(`GeniusDesk: falha ao enviar comando de movimento — ${err.message}`);
+      this.log.error(`GeniusDesk (${this.name}): falha ao enviar comando de movimento — ${err.message}`);
     }
   }
 
@@ -226,7 +298,7 @@ class GeniusDeskAccessory {
     try {
       await this.device.set({ dps: Number(this.dpControl), set: UP_DOWN_STOP });
     } catch (err) {
-      this.log.error(`GeniusDesk: falha ao enviar comando de stop — ${err.message}`);
+      this.log.error(`GeniusDesk (${this.name}): falha ao enviar comando de stop — ${err.message}`);
     }
     this.service.updateCharacteristic(this.hap.Characteristic.PositionState, this.hap.Characteristic.PositionState.STOPPED);
   }
@@ -237,7 +309,7 @@ class GeniusDeskAccessory {
     this.clearWatchdog();
     this.watchdogTimer = setTimeout(() => {
       if (this.moving) {
-        this.log.warn('GeniusDesk: watchdog acionado — motor não convergiu no tempo esperado, parando');
+        this.log.warn(`GeniusDesk (${this.name}): watchdog acionado — motor não convergiu no tempo esperado, parando`);
         this.stopMotor();
       }
     }, this.watchdogMs);
@@ -248,9 +320,5 @@ class GeniusDeskAccessory {
       clearTimeout(this.watchdogTimer);
       this.watchdogTimer = null;
     }
-  }
-
-  getServices() {
-    return [this.informationService, this.service];
   }
 }

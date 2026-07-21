@@ -40,30 +40,44 @@ e pode ser configurado direto pela interface (basta clicar em "Settings" no
 card do plugin). Os campos abaixo mostram o equivalente em JSON, caso prefira
 editar o `config.json` manualmente.
 
-Adicione um bloco em `accessories` (não em `platforms` — este é um accessory
-simples, não uma plataforma):
+A partir da v2.0.0 este plugin é uma **dynamic platform** (vai em `platforms`,
+não em `accessories`) e suporta uma ou mais mesas na mesma instância — basta
+adicionar mais um objeto em `devices`:
 
 ```json
 {
-  "accessories": [
+  "platforms": [
     {
-      "accessory": "GeniusDesk",
+      "platform": "GeniusDesk",
       "name": "Genius Desk",
-      "id": "SEU_DEVICE_ID_AQUI",
-      "key": "SUA_LOCAL_KEY_AQUI",
-      "ip": "IP_LOCAL_NA_SUA_REDE_OPCIONAL",
-      "protocolVersion": "3.4",
-      "minHeightCm": 62,
-      "maxHeightCm": 128,
-      "toleranceCm": 1,
-      "manufacturer": "Tuya",
-      "model": "Genius Desk"
+      "devices": [
+        {
+          "name": "Genius Desk",
+          "id": "SEU_DEVICE_ID_AQUI",
+          "key": "SUA_LOCAL_KEY_AQUI",
+          "ip": "IP_LOCAL_NA_SUA_REDE_OPCIONAL",
+          "protocolVersion": "3.4",
+          "minHeightCm": 62,
+          "maxHeightCm": 128,
+          "toleranceCm": 1,
+          "manufacturer": "Tuya",
+          "model": "Genius Desk"
+        }
+      ]
     }
   ]
 }
 ```
 
+> **Atualizando de uma versão anterior à 2.0.0?** O formato do config mudou
+> de `accessories: [{ accessory: "GeniusDesk", ... }]` para
+> `platforms: [{ platform: "GeniusDesk", devices: [...] }]`. Mova os campos
+> do seu bloco antigo para dentro de um item em `devices`, como no exemplo
+> acima.
+
 ### Onde conseguir cada valor
+
+Cada objeto dentro de `devices` representa uma mesa:
 
 - **`id`**: Device ID do seu dispositivo (veja onde pegar abaixo).
 - **`key`** (local key): no Tuya IoT Platform → Cloud → seu projeto →
@@ -103,5 +117,3 @@ Teste rápido antes de confiar no plugin:
   contínuo via HomeKit.
 - Não lida com child lock (DP 4) — pode ser adicionado depois como um
   `LockPhysicalControls` opcional se você quiser.
-- Assume uma única mesa por instância do accessory. Para múltiplas mesas,
-  duplique o bloco em `accessories` com IDs e chaves diferentes.
