@@ -44,7 +44,7 @@ class GeniusDeskAccessory {
     this.deviceId = config.id;
     this.localKey = config.key;
     this.ip = config.ip; // opcional — se omitido, tenta descobrir via broadcast UDP
-    this.protocolVersion = config.protocolVersion || '3.3';
+    this.protocolVersion = config.protocolVersion || '3.4';
 
     this.minHeightCm = config.minHeightCm;
     this.maxHeightCm = config.maxHeightCm;

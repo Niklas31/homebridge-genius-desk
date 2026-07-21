@@ -52,6 +52,7 @@ simples, não uma plataforma):
       "id": "eb51751f300fee3b39qyu5",
       "key": "SUA_LOCAL_KEY_AQUI",
       "ip": "IP_LOCAL_NA_SUA_REDE_OPCIONAL",
+      "protocolVersion": "3.4",
       "minHeightCm": 62,
       "maxHeightCm": 128,
       "toleranceCm": 1,
@@ -73,6 +74,12 @@ simples, não uma plataforma):
   via broadcast UDP na rede local (`device.find()` do tuyapi). Se sua
   rede bloquear broadcast (VLANs segmentadas, por exemplo), informe o IP
   fixo do dispositivo manualmente.
+- **`protocolVersion`**: versão do protocolo local da Tuya. O padrão do
+  plugin é `"3.3"`, mas a Genius Desk testada só aceitou conexão com
+  `"3.4"` — se o log mostrar `conectado` seguido imediatamente de
+  `erro de conexão — ECONNRESET` em loop (a cada ~5s, sem nunca receber
+  a altura real), troque para `"3.4"` (ou tente `"3.1"`/`"3.5"` se ainda
+  não funcionar).
 - **`minHeightCm` / `maxHeightCm`**: altura física mínima e máxima da
   mesa, em cm — geralmente na etiqueta do motor ou no manual. **Sem isso
   a conversão %↔cm fica errada.**
