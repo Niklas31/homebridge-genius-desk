@@ -1,6 +1,6 @@
 {
   "name": "homebridge-genius-desk",
-  "version": "2.0.0-beta.1",
+  "version": "2.0.0",
   "description": "Platform Homebridge para mesas de altura ajustável Tuya (controle local em malha fechada por altura real, suporta múltiplas mesas)",
   "main": "index.js",
   "author": "Niklas31",
