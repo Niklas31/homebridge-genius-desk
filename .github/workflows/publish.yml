@@ -36,5 +36,15 @@ jobs:
             exit 1
           fi
 
+      - name: Determine npm dist-tag
+        id: dist_tag
+        run: |
+          PKG_VERSION="$(node -p "require('./package.json').version")"
+          if [[ "$PKG_VERSION" == *-* ]]; then
+            echo "tag=beta" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=latest" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Publish to npm
-        run: npm publish --access public --provenance
+        run: npm publish --access public --provenance --tag ${{ steps.dist_tag.outputs.tag }}
