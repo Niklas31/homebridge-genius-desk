@@ -148,7 +148,13 @@ class GeniusDesk {
     this.device.on('data', (data) => this.handleData(data));
 
     this.device.on('disconnected', () => {
-      this.log.warn(`GeniusDesk (${this.name}): desconectado, tentando reconectar...`);
+      if (this.moving) {
+        this.log.warn(
+          `GeniusDesk (${this.name}): desconectado com o motor em movimento — não há como confirmar o stop até reconectar, tentando reconectar...`
+        );
+      } else {
+        this.log.warn(`GeniusDesk (${this.name}): desconectado, tentando reconectar...`);
+      }
       setTimeout(() => this.connect(), 5000);
     });
 
@@ -210,6 +216,15 @@ class GeniusDesk {
       this.log.error(`GeniusDesk (${this.name}): falha ao conectar, tentando novamente em 10s — ${err.message}`);
       setTimeout(() => this.connect(), 10000);
       return;
+    }
+
+    // Se a conexão caiu com o motor em movimento, não temos como saber se o
+    // watchdog conseguiu parar o motor de verdade (o comando pode ter falhado
+    // por falta de conexão) — manda stop de novo por segurança assim que
+    // reconectar, antes de qualquer outra coisa.
+    if (this.moving) {
+      this.log.warn(`GeniusDesk (${this.name}): reconectado com o motor marcado como em movimento — mandando stop de segurança`);
+      await this.stopMotor();
     }
 
     // Pede o estado atual assim que conecta
@@ -295,11 +310,25 @@ class GeniusDesk {
   async stopMotor() {
     this.moving = false;
     this.clearWatchdog();
-    try {
-      await this.device.set({ dps: Number(this.dpControl), set: UP_DOWN_STOP });
-    } catch (err) {
-      this.log.error(`GeniusDesk (${this.name}): falha ao enviar comando de stop — ${err.message}`);
+
+    // Stop é o comando mais crítico de segurança do plugin — tenta algumas
+    // vezes antes de desistir, em vez de só logar e seguir em frente.
+    const maxAttempts = 3;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        await this.device.set({ dps: Number(this.dpControl), set: UP_DOWN_STOP });
+        break;
+      } catch (err) {
+        if (attempt === maxAttempts) {
+          this.log.error(
+            `GeniusDesk (${this.name}): falha ao enviar comando de stop após ${maxAttempts} tentativas — ${err.message}`
+          );
+        } else {
+          await new Promise((resolve) => setTimeout(resolve, 300));
+        }
+      }
     }
+
     this.service.updateCharacteristic(this.hap.Characteristic.PositionState, this.hap.Characteristic.PositionState.STOPPED);
   }
 

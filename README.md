@@ -111,6 +111,24 @@ Teste rápido antes de confiar no plugin:
 2. Se não subir, tente `"Up"` ou `"UP"` — e ajuste as constantes
    `UP_DOWN_UP`, `UP_DOWN_DOWN`, `UP_DOWN_STOP` no topo do `index.js`.
 
+## Mesa mostra "00" e apita 3 vezes, perdendo a calibração
+
+Alguns controladores desse tipo de mesa entram nesse estado quando o motor
+fica se movendo sem receber um `stop` — por exemplo, se a conexão Wi-Fi cair
+bem no meio de um movimento, o comando de parada pode nunca chegar até o
+dispositivo, e a mesa continua subindo/descendo sem supervisão até bater no
+fim de curso físico. A partir da v2.0.0 o plugin:
+- tenta reenviar o `stop` até 3 vezes antes de desistir (em vez de só logar
+  um erro e seguir em frente);
+- ao reconectar depois de uma queda de conexão, se o motor estava marcado
+  como "em movimento", manda um `stop` de segurança imediatamente, já que
+  não há como confirmar o que aconteceu enquanto ficou desconectado.
+
+Se mesmo assim continuar acontecendo, é sinal de que a rede até esse
+dispositivo está instável demais para controle em malha fechada — vale
+checar o sinal Wi-Fi da mesa ou fixar o IP (campo `ip`) para eliminar a
+etapa de descoberta via broadcast.
+
 ## Limitações conhecidas
 
 - Não implementa presets de memória (sentado/em pé) — só posicionamento
